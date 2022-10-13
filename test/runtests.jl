@@ -20,6 +20,7 @@ using Aqua
 using Statistics
 using LinearAlgebra
 using InlineStrings
+using MPI
 
 using Enzyme_jll
 @info "Testing against" Enzyme_jll.libEnzyme
@@ -236,7 +237,7 @@ make3() = (1.0, 2.0, 3.0)
     test_scalar(x->rem(x, 1), 0.7)
     test_scalar(x->rem2pi(x,RoundDown), 0.7)
     test_scalar(x->fma(x,x+1,x/3), 2.3)
-    
+
     @test autodiff(Forward, sincos, Duplicated(1.0, 1.0))[1][1] ≈ cos(1.0)
 
     @test autodiff(Reverse, (x)->log(x), Active(2.0)) == ((0.5,),)
@@ -588,7 +589,7 @@ end
 
     bias = Float32[0.0;;;]
     res = Enzyme.autodiff(Reverse, f, Active, Active(x[1]), Const(bias))
-    
+
     @test bias[1][1] ≈ 0.0
     @test res[1][1] ≈ cos(x[1])
 end
@@ -931,7 +932,7 @@ end
 
 @inline function myquantile(v::AbstractVector, p::Real; alpha)
     n = length(v)
-    
+
     m = 1.0 + p * (1.0 - alpha - 1.0)
     aleph = n*p + oftype(p, m)
     j = clamp(trunc(Int, aleph), 1, n-1)
@@ -944,7 +945,7 @@ end
         a = @inbounds v[j]
         b = @inbounds v[j + 1]
     end
-    
+
     return a + γ*(b-a)
 end
 
@@ -1166,18 +1167,18 @@ end
 	@test 1.0 ≈ Enzyme.autodiff(Forward, inactive_gen, Duplicated(1E4, 1.0))[1]
 
     function whocallsmorethan30args(R)
-        temp = diag(R)     
-         R_inv = [temp[1] 0. 0. 0. 0. 0.; 
-             0. temp[2] 0. 0. 0. 0.; 
-             0. 0. temp[3] 0. 0. 0.; 
-             0. 0. 0. temp[4] 0. 0.; 
-             0. 0. 0. 0. temp[5] 0.; 
+        temp = diag(R)
+         R_inv = [temp[1] 0. 0. 0. 0. 0.;
+             0. temp[2] 0. 0. 0. 0.;
+             0. 0. temp[3] 0. 0. 0.;
+             0. 0. 0. temp[4] 0. 0.;
+             0. 0. 0. 0. temp[5] 0.;
          ]
-    
+
         return sum(R_inv)
     end
-    
-    R = zeros(6,6)    
+
+    R = zeros(6,6)
     dR = zeros(6, 6)
     autodiff(Reverse, whocallsmorethan30args, Active, Duplicated(R, dR))
 
@@ -1880,7 +1881,7 @@ end
     end
     # TODO: Add test for NoShadowException
 end
-    
+
 function indirectfltret(a)::DataType
     a[] *= 2
     return Float64
@@ -2386,7 +2387,7 @@ end
     Enzyme.API.runtimeActivity!(false)
     @test res[1] ≈ 0.2
     # broken as the return of an apply generic is {primal, primal}
-    # but since the return is abstractfloat doing the 
+    # but since the return is abstractfloat doing the
     @static if VERSION ≥ v"1.9-" && !(VERSION ≥ v"1.10-" )
         @test_broken res[2] ≈ 1.0
     else
@@ -2456,6 +2457,16 @@ end
     )
     @test ad_eta[1] ≈ 0.0
 end
+@testset "MPI" begin
+    testdir = @__DIR__
+    # Test parsing
+    include("mpi.jl")
+    mpiexec() do cmd
+        run(`$cmd -n 2 $(Base.julia_cmd()) --project=$testdir $testdir/mpi.jl`)
+    end
+    @test true
+end
+
 
 @testset "Tape Width" begin
     struct Roo
@@ -2525,10 +2536,10 @@ end
         Duplicated(inters, dinters),
     )
 
-    @test dinters[1].k ≈ 0.1 
-    @test dinters[1].t0 ≈ 1.0 
-    @test dinters[2].k ≈ 0.3 
-    @test dinters[2].t0 ≈ 2.0 
+    @test dinters[1].k ≈ 0.1
+    @test dinters[1].t0 ≈ 1.0
+    @test dinters[2].k ≈ 0.3
+    @test dinters[2].t0 ≈ 2.0
 end
 
 @testset "Statistics" begin
@@ -2597,7 +2608,7 @@ end
     y = A \ b
     @test dA ≈ (-z * transpose(y))
     @test db ≈ z
-    
+
     db = zero(b)
 
     forward, pullback = Enzyme.autodiff_thunk(ReverseSplitNoPrimal, Const{typeof(\)}, Duplicated, Const{typeof(A)}, Duplicated{typeof(b)})
@@ -2613,7 +2624,7 @@ end
 
     y = A \ b
     @test db ≈ z
-    
+
     dA = zero(A)
 
     forward, pullback = Enzyme.autodiff_thunk(ReverseSplitNoPrimal, Const{typeof(\)}, Duplicated, Duplicated{typeof(A)}, Const{typeof(b)})
