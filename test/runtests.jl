@@ -2470,7 +2470,7 @@ end
     catch
         mpi_test = false
     end
-    @test_broken mpi_test
+    @test mpi_test
 end
 
 
